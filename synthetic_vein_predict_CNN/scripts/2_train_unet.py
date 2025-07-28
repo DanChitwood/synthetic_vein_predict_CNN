@@ -4,13 +4,13 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader, random_split
 from torchvision import transforms 
 import os
-import pandas as pd
+import pandas as pd # Already imported, good!
 from PIL import Image
 from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
-from tqdm.auto import tqdm # Already imported, good to go!
+from tqdm.auto import tqdm 
 
 # --- Global Random Seed for Reproducibility ---
 GLOBAL_RANDOM_SEED = 42
@@ -29,14 +29,15 @@ def set_seed(seed):
 # --- Configuration Parameters (consistent with synthetic data generation) ---
 IMAGE_SIZE = (256, 256) # Output size for all images (masks, ECT, RGB)
 
-# MODIFIED: Paths relative to the script's execution location (assuming it's in a 'scripts' folder)
+# Paths relative to the script's execution location (assuming it's in a 'scripts' folder)
 BASE_OUTPUTS_DIR = Path(__file__).parent.parent / "outputs"
 SYNTHETIC_DATA_OUTPUT_DIR = BASE_OUTPUTS_DIR / "synthetic_leaf_data"
 SYNTHETIC_METADATA_FILE = SYNTHETIC_DATA_OUTPUT_DIR / "synthetic_metadata.csv"
 
-# MODIFIED: Model save path now points to ../outputs/saved_leaf_model_data
-MODEL_SAVE_DIR = BASE_OUTPUTS_DIR / "saved_leaf_model_data"
+# Model save path now points to ../outputs/unet_model_results
+MODEL_SAVE_DIR = BASE_OUTPUTS_DIR / "unet_model_results"
 MODEL_SAVE_PATH = MODEL_SAVE_DIR / "trained_leaf_segmentation_model.pth"
+DICE_HISTORY_SAVE_PATH = MODEL_SAVE_DIR / "validation_dice_history.csv" # MODIFIED: Changed to .csv
 
 # --- Training Parameters (Adjust these!) ---
 BATCH_SIZE = 16
@@ -253,12 +254,14 @@ def calculate_dice_coefficient(predictions, targets, smooth=1e-6):
     return dice.item() # Return scalar value
 
 # --- Training and Validation Functions ---
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=NUM_EPOCHS, model_save_path=MODEL_SAVE_PATH):
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=NUM_EPOCHS, model_save_path=MODEL_SAVE_PATH, dice_history_save_path=DICE_HISTORY_SAVE_PATH):
     best_dice = -1.0 # Initialize with a value lower than any possible Dice (Dice is between 0 and 1)
+    val_dice_history = [] # List to store validation Dice for each epoch
 
     # Ensure the model save directory exists
     model_save_path.parent.mkdir(parents=True, exist_ok=True)
     print(f"Model will be saved to: {model_save_path}")
+    print(f"Validation Dice history will be saved to: {dice_history_save_path}")
 
     for epoch in range(num_epochs):
         print(f"Epoch {epoch+1}/{num_epochs}")
@@ -316,6 +319,9 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=NUM_EPOCHS,
         epoch_val_loss = running_val_loss / len(dataloaders['val'].dataset)
         epoch_val_dice = running_val_dice / len(dataloaders['val'].dataset)
         print(f"Validation Loss: {epoch_val_loss:.4f}, Validation Dice: {epoch_val_dice:.4f}")
+        
+        # Store validation Dice for this epoch
+        val_dice_history.append(epoch_val_dice)
 
         # Save the best model based on Dice Coefficient
         if epoch_val_dice > best_dice:
@@ -326,6 +332,15 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=NUM_EPOCHS,
         print() # Newline for readability
 
     print("Training complete!")
+    
+    # Save the validation Dice history to a CSV
+    df_dice_history = pd.DataFrame({
+        'Epoch': range(1, len(val_dice_history) + 1),
+        'Validation_Dice': val_dice_history
+    })
+    df_dice_history.to_csv(dice_history_save_path, index=False)
+    print(f"Validation Dice history saved to {dice_history_save_path}")
+
     return model
 
 # --- Main Execution ---
@@ -368,7 +383,8 @@ if __name__ == "__main__":
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
     # Train the model
-    trained_model = train_model(model, dataloaders, criterion, optimizer, NUM_EPOCHS, MODEL_SAVE_PATH)
+    # Pass the dice_history_save_path to the train_model function
+    trained_model = train_model(model, dataloaders, criterion, optimizer, NUM_EPOCHS, MODEL_SAVE_PATH, DICE_HISTORY_SAVE_PATH)
 
     print("\n--- Model Training Finished ---")
 
