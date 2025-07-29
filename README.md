@@ -7,7 +7,7 @@ code for predicting leaf venation from the blade outline
 ## Data inputs  
 Unzip the compressed file `data.zip` and keep in place to access the raw data.
 
-## Geometric Morphometric Analysis and Synthetic Data Generation  
+## Geometric Morphometric Analysis 
 `0_morphometric_leaf_processing.ipynb`  
 Leaf shape data, comprising both vein and blade coordinate landmarks, were prepared for geometric morphometric analysis. Each leaf's coordinate set was initially reshaped into a two-dimensional array by concatenating vein and blade coordinates. A Generalized Procrustes Analysis (GPA) was then performed to remove non-shape variation (position, scale, and orientation), yielding a mean shape and a set of Procrustes-aligned shapes.
 
